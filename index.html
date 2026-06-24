@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>超特大！手書き筆算 - 星あつめ</title>
+    <style>
+        body {
+            font-family: 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+            margin: 0;
+            padding: 2px 10px; /* 上の余白を極限まで排除 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* 上詰めに配置 */
+            background-color: #f7fafc;
+            height: 100vh;
+            box-sizing: border-box;
+            touch-action: none; /* スクロール・拡大禁止 */
+            overflow: hidden;
+        }
+
+        /* 星のメーター */
+        .star-container {
+            font-size: 1.5rem;
+            margin-top: 2px;
+            margin-bottom: 3px;
+            color: #cbd5e0;
+            letter-spacing: 4px;
+        }
+        .star-active {
+            color: #ecc94b;
+            text-shadow: 0 0 5px rgba(236, 201, 75, 0.5);
+        }
+
+        /* メイン画面（画面いっぱいに拡大） */
+        .main-layout {
+            display: flex;
+            background-color: #ffffff;
+            padding: 10px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 4px solid #cbd5e0;
+            width: 100%;
+            max-width: 520px; 
+            height: 90vh; /* 縦幅を限界まで使う */
+            box-sizing: border-box;
+            align-items: center;
+        }
+
+        /* 左側：筆算エリア */
+        .hissan-area {
+            flex: 3.2; 
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            font-size: 5rem; /* 数字を限界まで大きく */
+            font-weight: bold;
+            color: #1a202c;
+            align-items: center;
+            justify-items: center;
+            height: 100%;
+        }
+
+        /* 右側：ボタンエリア */
+        .button-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 95%;
+            justify-content: center;
+            padding-left: 10px;
+            border-left: 2px dashed #e2e8f0;
+        }
+
+        /* 手書きマス（答え）★限界巨大サイズ */
+        .write-box {
+            width: 85px;   
+            height: 120px; 
+            border: 4px solid #2b6cb0;
+            border-radius: 12px;
+            background-color: #ffffff;
+            box-sizing: border-box;
+            touch-action: none;
+        }
+
+        /* メモマス（繰り上がり・下がり） */
+        .memo-box {
+            width: 55px;
+            height: 75px;
+            border: 2px dashed #dd6b20;
+            border-radius: 8px;
+            background-color: #fffaf0;
+            touch-action: none;
+        }
+
+        .operator {
+            grid-column: 1;
+            grid-row: 3;
+            justify-self: end;
+        }
+
+        .line {
+            grid-column: 1 / 5;
+            grid-row: 4;
+            width: 100%;
+            height: 7px; 
+            background-color: #1a202c;
+            margin: 2px 0;
+            border-radius: 3px;
+        }
+
+        /* 右寄せの縦型大型ボタン */
+        button {
+            width: 100%;
+            padding: 25px 0; 
+            font-size: 1.4rem;
+            font-weight: bold;
+            border-radius: 15px;
+            border: none;
+            cursor: pointer;
+            color: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+        
+        .btn-clear { background-color: #e53e3e; }
+        .btn-check { background-color: #38a169; }
+        .btn-next { background-color: #3182ce; }
+
+        /* クリア画面 */
+        .clear-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(255,255,255,0.95);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .clear-overlay h2 { font-size: 2.5rem; color: #ecc94b; text-shadow: 1px 1px 2px #000; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="star-container" id="star-bar">
+        <span>☆</span><span>☆</span><span>☆</span><span>☆</span><span>☆</span><span>☆</span><span>☆</span><span>☆</span><span>☆</span><span>☆</span>
+    </div>
+
+    <div class="main-layout">
+        
+        <div class="hissan-area">
+            <div></div>
+            <canvas class="memo-box" id="m100"></canvas>
+            <canvas class="memo-box" id="m10"></canvas>
+            <canvas class="memo-box" id="m1"></canvas>
+
+            <div></div>
+            <div></div>
+            <div id="num1-10">-</div>
+            <div id="num1-1">-</div>
+
+            <div id="op" class="operator">+</div>
+            <div></div>
+            <div id="num2-10">-</div>
+            <div id="num2-1">-</div>
+
+            <div class="line"></div>
+
+            <div></div>
+            <canvas class="write-box" id="a100"></canvas>
+            <canvas class="write-box" id="a10"></canvas>
+            <canvas class="write-box" id="a1"></canvas>
+        </div>
+
+        <div class="button-area">
+            <button class="btn-clear" onclick="clearAllCanvases()">けす</button>
+            <button class="btn-check" onclick="checkAnswer()">こたえ</button>
+            <button class="btn-next" onclick="nextQuestion()">つぎへ</button>
+        </div>
+    </div>
+
+    <div class="clear-overlay" id="clear-screen">
+        <h2>🏅 10もん クリア！ 🏅</h2>
+        <p style="font-size: 1.5rem; font-weight: bold;">たいへん よくできました！🌟</p>
+        <button class="btn-next" style="width: 200px; margin-top: 20px;" onclick="restartGame()">もういちど やる</button>
+    </div>
+
+    <script>
+        let currentAnswer = 0;
+        let isDrawing = false;
+        let solvedCount = 0; 
+        let isCorrected = false; 
+        
+        const canvases = document.querySelectorAll('canvas');
+
+        // 問題作成プログラム（先に確実に定義）
+        function generateProblem() {
+            clearAllCanvases();
+            isCorrected = false;
+            
+            const isAddition = Math.random() < 0.5;
+            let n1, n2;
+
+            if (isAddition) {
+                let u1 = Math.floor(Math.random() * 9) + 1;
+                let u2 = Math.floor(Math.random() * (10 - u1)) + (10 - u1);
+                if (u2 > 9) u2 = 9;
+
+                let t1 = Math.floor(Math.random() * 7) + 1;
+                let t2 = Math.floor(Math.random() * 7) + 1;
+
+                n1 = t1 * 10 + u1;
+                n2 = t2 * 10 + u2;
+                currentAnswer = n1 + n2;
+                document.getElementById('op').innerText = '+';
+            } else {
+                let u1 = Math.floor(Math.random() * 8);
+                let u2 = u1 + 1 + Math.floor(Math.random() * (9 - u1));
+
+                let t1 = Math.floor(Math.random() * 6) + 4;
+                let t2 = Math.floor(Math.random() * (t1 - 2)) + 1;
+
+                n1 = t1 * 10 + u1;
+                n2 = t2 * 10 + u2;
+                currentAnswer = n1 - n2;
+                document.getElementById('op').innerText = 'ー';
+            }
+
+            document.getElementById('num1-10').innerText = Math.floor(n1 / 10);
+            document.getElementById('num1-1').innerText = n1 % 10;
+            document.getElementById('num2-10').innerText = Math.floor(n2 / 10);
+            document.getElementById('num2-1').innerText = n2 % 10;
+        }
+
+        // キャンバス手書き機能の設定
+        function initCanvases() {
+            canvases.forEach(canvas => {
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+
+                function getXY(e) {
+                    const r = canvas.getBoundingClientRect();
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                    return { x: clientX - r.left, y: clientY - r.top };
+                }
+
+                function start(e) {
+                    isDrawing = true;
+                    const pos = getXY(e);
+                    ctx.beginPath();
+                    ctx.moveTo(pos.x, pos.y);
+                    e.preventDefault();
+                }
+
+                function move(e) {
+                    if (!isDrawing) return;
+                    const pos = getXY(e);
+                    ctx.lineWidth = canvas.classList.contains('memo-box') ? 5 : 10; 
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.strokeStyle = '#1a202c';
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                    e.preventDefault();
+                }
+
+                canvas.addEventListener('mousedown', start, {passive: false});
+                canvas.addEventListener('mousemove', move, {passive: false});
+                canvas.addEventListener('touchstart', start, {passive: false});
+                canvas.addEventListener('touchmove', move, {passive: false});
+            });
+        }
+
+        window.addEventListener('mouseup', () => isDrawing = false);
+        window.addEventListener('touchend', () => isDrawing = false);
+
+        function clearAllCanvases() {
+            canvases.forEach(canvas => {
+                const ctx = canvas.getContext('2d');
+                if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+            });
+        }
+
+        function checkAnswer() {
+            alert(`【ただしい こたえ】 ${currentAnswer}\nあっていたら「つぎへ」を おそう！`);
+            isCorrected = true;
+        }
+
+        function nextQuestion() {
+            if (!isCorrected) {
+                alert("さきに「こたえ」ボタンを おしてね！");
+                return;
+            }
+
+            const stars = document.getElementById('star-bar').children;
+            if (solvedCount < 10) {
+                stars[solvedCount].innerText = "★";
+                stars[solvedCount].classList.add("star-active");
+                solvedCount++;
+            }
+
+            if (solvedCount >= 10) {
+                document.getElementById('clear-screen').style.display = 'flex';
+            } else {
+                generateProblem();
+            }
+        }
+
+        function restartGame() {
+            solvedCount = 0;
+            const stars = document.getElementById('star-bar').children;
+            for (let i = 0; i < stars.length; i++) {
+                stars[i].innerText = "☆";
+                stars[i].classList.remove("star-active");
+            }
+            document.getElementById('clear-screen').style.display = 'none';
+            generateProblem();
+        }
+
+        // 描画サイズが確定した後に安全に起動させる
+        window.addEventListener('DOMContentLoaded', () => {
+            initCanvases();
+            generateProblem();
+        });
+        
+        // 念のためのダブルチェック起動
+        window.onload = function() {
+            initCanvases();
+            if(document.getElementById('num1-10').innerText === "-") {
+                generateProblem();
+            }
+        };
+    </script>
+</body>
+</html>
